@@ -1,0 +1,33 @@
+{
+  "name": "zestra-chart-ui",
+  "version": "1.0.0",
+  "description": "Modular Chart UI for Zestra Capital Economic Analytics Plugin",
+  "main": "dist/zestra-dashboard.js",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "chart",
+    "dashboard",
+    "wordpress",
+    "economic-data"
+  ],
+  "author": "Zestra Capital",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "babel-loader": "^9.1.3",
+    "css-loader": "^6.8.1",
+    "mini-css-extract-plugin": "^2.7.6",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^2.30.0"
+  }
+}
