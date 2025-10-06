@@ -133,23 +133,15 @@ class Dashboard {
                             </div>
                         </div>
 
-                        <!-- Historical Change Cards (from temp version, placed here) -->
-                        <div class="zd-stats-section">
+                        <!-- Removed 3M/6M/1Y Stats Section as per user request -->
+                        <div class="zd-stats-section" style="display:none">
                             <div class="zd-stats-grid">
-                                <div class="zd-stat-card">
-                                    <span class="zd-stat-label">3M Change</span>
-                                    <span id="zd-3m-change" class="zd-stat-value">--</span>
-                                </div>
-                                <div class="zd-stat-card">
-                                    <span class="zd-stat-label">6M Change</span>
-                                    <span id="zd-6m-change" class="zd-stat-value">--</span>
-                                </div>
-                                <div class="zd-stat-card">
-                                    <span class="zd-stat-label">1Y Change</span>
-                                    <span id="zd-1y-change" class="zd-stat-value">--</span>
-                                </div>
+                                <div class="zd-stat-card"><span class="zd-stat-label">3M Change</span><span id="zd-3m-change" class="zd-stat-value">--</span></div>
+                                <div class="zd-stat-card"><span class="zd-stat-label">6M Change</span><span id="zd-6m-change" class="zd-stat-value">--</span></div>
+                                <div class="zd-stat-card"><span class="zd-stat-label">1Y Change</span><span id="zd-1y-change" class="zd-stat-value">--</span></div>
                             </div>
                         </div>
+
 
                         <!-- Timeframe Selection -->
                         ${this.config.showTimeframes !== false ? this.renderTimeframes() : ""}
@@ -316,9 +308,9 @@ class Dashboard {
     this.bindSearchToggle();
     this.bindChartTypeToggle();
     this.bindLLMButtons();
-    this.timeframeModule.bindEvents(); // Use module's bindEvents
+    this.timeframeModule.bindEvents();
     this.bindCompareButton();
-    this.comparisonModule.updateSidebar(); // Initial binding for sidebar close/toggle
+    this.comparisonModule.updateSidebar();
     this.bindCloseCompareModal();
     this.bindDraggableSidebar();
     this.bindSearchInput();
@@ -334,7 +326,7 @@ class Dashboard {
     const toggleBtn = this.container.querySelector('#zd-theme-toggle');
     if (toggleBtn) {
       toggleBtn.addEventListener('click', () => {
-        this.themeModule.bindEvents(); // Use the ThemeModule's logic
+        this.themeModule.bindEvents();
         this.themeModule.setTheme(this.currentTheme === 'light' ? 'dark' : 'light');
       });
     }
@@ -482,11 +474,14 @@ class Dashboard {
         let currentY = clientY - initialY;
         
         // Clamping logic to keep it visible
-        const maxX = window.innerWidth - sidebar.offsetWidth;
-        const maxY = window.innerHeight - sidebar.offsetHeight;
+        const wrapper = sidebar.parentElement;
+        const maxX = wrapper.offsetWidth - sidebar.offsetWidth - 20; // 20px padding
+        const maxY = wrapper.offsetHeight - sidebar.offsetHeight - 20;
+        const minX = 20;
+        const minY = 20;
         
-        currentX = Math.min(Math.max(currentX, -sidebar.offsetLeft), maxX - sidebar.offsetLeft);
-        currentY = Math.min(Math.max(currentY, -sidebar.offsetTop), maxY - sidebar.offsetTop);
+        currentX = Math.min(Math.max(currentX, minX), maxX);
+        currentY = Math.min(Math.max(currentY, minY), maxY);
 
         setTranslate(currentX, currentY, sidebar);
     }
@@ -673,8 +668,9 @@ class Dashboard {
         const matchingData = item.series; 
 
         if (matchingData && matchingData.length > 0) {
-            // Apply current timeframe filter to the full data of the new comparison item
+            // Get the current range from the active button
             const currentRange = this.container.querySelector('.zd-tf-btn.active')?.dataset.range || this.config.defaultTimeRange || '5Y';
+            // Apply current timeframe filter to the full data of the new comparison item
             const filteredData = this.timeframeModule.applyFilter(currentRange, matchingData);
             
             this.chartDataStore.comparisons.push({
