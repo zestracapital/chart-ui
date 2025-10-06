@@ -1,7 +1,6 @@
 /**
  * Timeframe Module
  * Handles timeframe filtering and controls
- * ~80 lines  
  */
 class TimeframeModule {
   constructor(dashboard) {
@@ -19,26 +18,43 @@ class TimeframeModule {
     });
   }
 
-  applyFilter(rangeInYears) {
-    const filterData = (fullData) => {
-      if (fullData.length === 0) return [];
-      if (rangeInYears === 'all') return [...fullData];
+  /**
+   * Applies the date range filter to a given full dataset.
+   * @param {string} rangeInYears E.g., '1', '5', 'all', '0.5'
+   * @param {Array<Object>} fullData The full data array (optional for dashboard update)
+   * @returns {Array<Object>} The filtered data array
+   */
+  applyFilter(rangeInYears, fullData = null) {
+    const filterData = (data) => {
+      if (data.length === 0) return [];
+      if (rangeInYears === 'all') return [...data];
 
       const months = parseFloat(rangeInYears) * 12;
-      const lastDataPointDate = fullData[fullData.length - 1].x;
+      const lastDataPointDate = data[data.length - 1].x;
       const startDate = new Date(lastDataPointDate);
       startDate.setMonth(startDate.getMonth() - months);
 
-      return fullData.filter(d => d.x >= startDate);
+      return data.filter(d => d.x >= startDate);
     };
 
+    // If passed a standalone dataset (used when fetching comparison data), return filtered data
+    if (fullData) {
+        return filterData(fullData);
+    }
+    
+    // --- Update Dashboard's ChartDataStore ---
+    
+    // 1. Primary
     if (this.dashboard.chartDataStore.primary.full.length > 0) {
       this.dashboard.chartDataStore.primary.current = filterData(this.dashboard.chartDataStore.primary.full);
     }
 
-    if (this.dashboard.chartDataStore.secondary.full.length > 0) {
-      this.dashboard.chartDataStore.secondary.current = filterData(this.dashboard.chartDataStore.secondary.full);
-    }
+    // 2. Comparisons
+    this.dashboard.chartDataStore.comparisons.forEach(comp => {
+      if (comp.full.length > 0) {
+        comp.current = filterData(comp.full);
+      }
+    });
 
     this.dashboard.chartRenderer.createOrUpdateChart();
   }
