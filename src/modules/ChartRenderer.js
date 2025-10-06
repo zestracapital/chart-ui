@@ -5,22 +5,23 @@
 class ChartRenderer {
   constructor(dashboard) {
     this.dashboard = dashboard;
+    // Expanded color palette for up to 10 distinct comparison lines
     this.themes = {
       light: {
         gridColor: 'rgba(0, 0, 0, 0.05)',
         textColor: '#5b7083',
         tooltipBg: 'rgba(255, 255, 255, 0.95)',
         tooltipText: '#14171a',
-        line1: '#00BCD4',
-        line2: '#FF5722',
-        line3: '#4CAF50',
-        line4: '#9C27B0',
-        line5: '#FFEB3B',
-        line6: '#008CFF',
-        line7: '#FF0077',
-        line8: '#8D6E63',
-        line9: '#FF9800',
-        line10: '#009688',
+        line1: '#00BCD4', // Primary - Teal
+        line2: '#FF5722', // Comp 1 - Orange
+        line3: '#4CAF50', // Comp 2 - Green
+        line4: '#9C27B0', // Comp 3 - Purple
+        line5: '#FFEB3B', // Comp 4 - Yellow
+        line6: '#008CFF', // Comp 5 - Blue
+        line7: '#FF0077', // Comp 6 - Pink
+        line8: '#8D6E63', // Comp 7 - Brown
+        line9: '#FF9800', // Comp 8 - Deep Orange
+        line10: '#009688', // Comp 9 - Cyan
         barBg: 'rgba(0, 188, 212, 0.8)'
       },
       dark: {
@@ -28,41 +29,55 @@ class ChartRenderer {
         textColor: '#8899a6',
         tooltipBg: 'rgba(21, 32, 43, 0.95)',
         tooltipText: '#ffffff',
-        line1: '#26C6DA',
-        line2: '#FF7043',
-        line3: '#66BB6A',
-        line4: '#D450FF',
-        line5: '#FFF176',
-        line6: '#509EFF',
-        line7: '#FF50A5',
-        line8: '#A1887F',
-        line9: '#FFB74D',
-        line10: '#4DB6AC',
+        line1: '#26C6DA', // Primary - Cyan
+        line2: '#FF7043', // Comp 1 - Coral
+        line3: '#66BB6A', // Comp 2 - Light Green
+        line4: '#D450FF', // Comp 3 - Light Purple
+        line5: '#FFF176', // Comp 4 - Light Yellow
+        line6: '#509EFF', // Comp 5 - Light Blue
+        line7: '#FF50A5', // Comp 6 - Light Pink
+        line8: '#A1887F', // Comp 7 - Light Brown
+        line9: '#FFB74D', // Comp 8 - Light Deep Orange
+        line10: '#4DB6AC', // Comp 9 - Light Cyan
         barBg: 'rgba(38, 198, 218, 0.8)'
       }
     };
+  }
+
+  // Helper to get color, cycling dynamically after line10
+  getDatasetColor(index, currentTheme) {
+    const colorKey = `line${index + 1}`;
+    // Dynamic HSL Fallback (starts after pre-defined colors)
+    if (index >= 10) {
+      // Use index 10 (line11) onward for dynamic generation
+      // Use a formula that spreads colors out in the HSL space
+      const hue = (index * 37) % 360; 
+      return `hsl(${hue}, 75%, 50%)`;
+    }
+    return currentTheme[colorKey] || `hsl(${(index * 37) % 360}, 75%, 50%)`;
   }
 
   updateChartTheme() {
     if (!this.dashboard.chart) return;
     const currentTheme = this.themes[this.dashboard.currentTheme] || this.themes.light;
     
+    // Update colors for scales, plugins, and axes
     this.dashboard.chart.options.scales.x.ticks.color = currentTheme.textColor;
     this.dashboard.chart.options.scales.y.ticks.color = currentTheme.textColor;
     this.dashboard.chart.options.scales.x.grid.color = currentTheme.gridColor;
     this.dashboard.chart.options.scales.y.grid.color = currentTheme.gridColor;
-    
     this.dashboard.chart.options.plugins.tooltip.backgroundColor = currentTheme.tooltipBg;
     this.dashboard.chart.options.plugins.tooltip.titleColor = currentTheme.tooltipText;
     this.dashboard.chart.options.plugins.tooltip.bodyColor = currentTheme.tooltipText;
     this.dashboard.chart.options.plugins.legend.labels.color = currentTheme.textColor;
     
+    // Update datasets colors
     if (this.dashboard.chart.data.datasets && this.dashboard.chart.data.datasets.length > 0) {
       this.dashboard.chart.data.datasets.forEach((dataset, index) => {
-        const colorKey = `line${index + 1}`;
-        const color = currentTheme[colorKey] || `hsl(${(index * 37) % 360}, 75%, 50%)`;
+        const color = this.getDatasetColor(index, currentTheme);
         
         dataset.borderColor = color;
+        // Only primary chart (index 0) uses barBg if type is bar
         dataset.backgroundColor = (index === 0 && dataset.type === 'bar') ? currentTheme.barBg : `${color}15`;
       });
     }
@@ -97,6 +112,7 @@ class ChartRenderer {
     const currentTheme = this.themes[this.dashboard.currentTheme] || this.themes.light;
     const chartTypeConfig = this.dashboard.chartTypesModule.getChartConfig(this.dashboard.currentChartType);
     
+    // Calculate overall range for primary Y-axis based on ALL visible data
     const allVisibleData = [primary.current, ...comparisons.map(comp => comp.current)];
     const allValues = allVisibleData.flatMap(data => data.map(item => parseFloat(item.y))).filter(val => !isNaN(val));
     
@@ -111,13 +127,15 @@ class ChartRenderer {
     
     const datasets = [];
     
+    // Primary Tension Fix: Enforce 0.3 tension for line charts, 0 for bar charts
     const primaryTension = chartTypeConfig.type === 'line' ? 0.3 : 0;
 
+    // 1. Primary Dataset
     datasets.push({
       label: primary.title,
       data: primary.current,
-      borderColor: currentTheme.line1,
-      backgroundColor: this.dashboard.currentChartType === 'bar' ? currentTheme.barBg : `${currentTheme.line1}15`,
+      borderColor: this.getDatasetColor(0, currentTheme),
+      backgroundColor: this.dashboard.currentChartType === 'bar' ? currentTheme.barBg : `${this.getDatasetColor(0, currentTheme)}15`,
       borderWidth: 3,
       type: chartTypeConfig.type,
       tension: primaryTension, 
@@ -127,11 +145,12 @@ class ChartRenderer {
       yAxisID: 'y', 
     });
 
+    // 2. Comparison Datasets (Tension and Color Fix)
     comparisons.forEach((comp, index) => {
+      // Comparison lines should always be type 'line' with tension 0.3
       const secondaryChartTypeConfig = this.dashboard.chartTypesModule.getChartConfig('line');
       
-      const colorKey = `line${index + 2}`; 
-      const color = currentTheme[colorKey] || `hsl(${((index + 1) * 37) % 360}, 75%, 50%)`; 
+      const color = this.getDatasetColor(index + 1, currentTheme); // Start at index 1 (line2)
       
       datasets.push({
         label: comp.title,
@@ -140,14 +159,15 @@ class ChartRenderer {
         backgroundColor: `${color}15`,
         borderWidth: 3,
         fill: secondaryChartTypeConfig.fill,
-        type: 'line',
-        tension: 0.3,
+        type: 'line', // Forced to line for comparison
+        tension: 0.3, // Fixed tension for smooth curves on comparison lines
         yAxisID: 'y', 
         pointRadius: secondaryChartTypeConfig.pointRadius,
         pointHoverRadius: secondaryChartTypeConfig.pointHoverRadius,
       });
     });
 
+    // Create scales
     const scales = {
       x: {
         type: 'time',
@@ -177,6 +197,7 @@ class ChartRenderer {
       }
     };
 
+    // Create chart
     const ctx = canvas.getContext('2d');
     this.dashboard.chart = new Chart(ctx, {
       type: this.dashboard.currentChartType === 'bar' ? 'bar' : 'line',
