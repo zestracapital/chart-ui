@@ -4,20 +4,19 @@ import SearchModule from './SearchModule.js';
 import ComparisonModule from './ComparisonModule.js';
 import TimeframeModule from './TimeframeModule.js';
 import ThemeModule from './ThemeModule.js';
-import LLMModule from './LLMModule.js'; // Import the new LLM module
-import ChartTypesModule from './ChartTypesModule.js'; // Import the new Chart Types module
+import LLMModule from './LLMModule.js';
+import ChartTypesModule from './ChartTypesModule.js';
 
 /**
  * Main Dashboard Class (Core Module)
  * Handles initialization, state management, and coordination between modules
- * ~380 lines
  */
 class Dashboard {
   constructor(container, config) {
     this.container = container;
     this.config = config;
     this.chart = null;
-    // Updated structure to support multiple comparisons
+    
     this.chartDataStore = {
       primary: { full: [], current: [], title: '', slug: '', lastUpdate: null },
       comparisons: [] // Array to hold multiple comparison datasets
@@ -33,17 +32,29 @@ class Dashboard {
     this.comparisonModule = new ComparisonModule(this);
     this.timeframeModule = new TimeframeModule(this);
     this.themeModule = new ThemeModule(this);
-    this.llmModule = new LLMModule(this); // Initialize the new LLM module
-    this.chartTypesModule = new ChartTypesModule(this); // Initialize the new Chart Types module
+    this.llmModule = new LLMModule(this);
+    this.chartTypesModule = new ChartTypesModule(this);
 
     this.init();
   }
 
   init() {
     this.render();
+    this.setInitialTheme(); // Set theme before checking range for better visual load
     this.setInitialTimeframeFromConfig();
     this.bindEvents();
     this.loadDefaultIndicator();
+  }
+
+  setInitialTheme() {
+    const dashboardEl = this.container.querySelector('.zc-zestra-dashboard');
+    if (this.config.theme === 'dark') {
+      dashboardEl.classList.add('dark-theme');
+      this.currentTheme = 'dark';
+    } else {
+      dashboardEl.classList.remove('dark-theme');
+      this.currentTheme = 'light';
+    }
   }
 
   setInitialTimeframeFromConfig() {
@@ -55,11 +66,12 @@ class Dashboard {
     else if (raw.endsWith('Y')) match = String(parseInt(raw, 10) || 5);
     else if (raw.endsWith('M')) {
       const m = parseInt(raw, 10) || 6;
-      match = (m / 12).toString();
+      match = (m / 12).toString(); // Convert months to equivalent years for range attribute
     }
     
     if (!match) return;
     
+    // Set the 'active' class based on config match
     const btns = this.container.querySelectorAll('.zd-tf-btn');
     btns.forEach(b => b.classList.remove('active'));
     const target = this.container.querySelector(`.zd-tf-btn[data-range="${match}"]`);
@@ -284,30 +296,35 @@ class Dashboard {
   }
 
   renderAnalysisContent(title, content) {
+    const contentHtml = content.text
+      .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>") // Bold
+      .replace(/^- /gm, "• ") // List
+      .replace(/\n/g, "<br>"); // Newlines
+
     return `
             <div class="zd-analysis-box-header">
                 <h4 id="zd-analysis-title">${title}</h4>
                 <button id="zd-analysis-close" class="zd-analysis-close" title="Close Analysis">×</button>
             </div>
-            <div id="zd-analysis-content" class="zd-analysis-content">${content.text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>").replace(/^- /gm, "• ").replace(/\n/g, "<br>")}</div>
+            <div id="zd-analysis-content" class="zd-analysis-content">${contentHtml}</div>
         `;
   }
 
   bindEvents() {
-    // Bind events specific to the Dashboard module
     this.bindThemeToggle();
     this.bindFullscreenToggle();
     this.bindSearchToggle();
     this.bindChartTypeToggle();
     this.bindLLMButtons();
-    this.bindAnalysisCloseEvent();
+    this.timeframeModule.bindEvents(); // Use module's bindEvents
     this.bindCompareButton();
-    this.bindCloseSidebar();
+    this.comparisonModule.updateSidebar(); // Initial binding for sidebar close/toggle
     this.bindCloseCompareModal();
-    this.bindDraggableSidebar(); // Bind the draggable sidebar event
-    this.bindTimeframeButtons();
+    this.bindDraggableSidebar();
     this.bindSearchInput();
     this.bindCompareSearchInput();
+    
+    // Global document click handler
     document.addEventListener('click', (e) => {
       this.handleDocumentClick(e);
     });
@@ -317,15 +334,8 @@ class Dashboard {
     const toggleBtn = this.container.querySelector('#zd-theme-toggle');
     if (toggleBtn) {
       toggleBtn.addEventListener('click', () => {
-        const dashboardEl = this.container.querySelector('.zc-zestra-dashboard');
-        const isDark = dashboardEl.classList.toggle('dark-theme');
-        const sunIcon = this.container.querySelector('.zd-sun-icon');
-        const moonIcon = this.container.querySelector('.zd-moon-icon');
-        if (sunIcon) sunIcon.style.display = isDark ? 'none' : 'block';
-        if (moonIcon) moonIcon.style.display = isDark ? 'block' : 'none';
-        this.currentTheme = isDark ? 'dark' : 'light';
-        // Notify other modules or update chart theme
-        this.chartRenderer.updateChartTheme();
+        this.themeModule.bindEvents(); // Use the ThemeModule's logic
+        this.themeModule.setTheme(this.currentTheme === 'light' ? 'dark' : 'light');
       });
     }
   }
@@ -399,10 +409,6 @@ class Dashboard {
     }
   }
 
-  bindAnalysisCloseEvent() {
-    // Already handled in the main document click handler
-  }
-
   bindCompareButton() {
     const compareBtn = this.container.querySelector('#zd-compare-btn');
     const modal = this.container.querySelector('#zd-compare-modal');
@@ -415,16 +421,6 @@ class Dashboard {
     }
   }
 
-  bindCloseSidebar() {
-    const closeBtn = this.container.querySelector('#zd-close-sidebar');
-    const sidebar = this.container.querySelector('#zd-comparison-sidebar');
-    if (closeBtn && sidebar) {
-      closeBtn.addEventListener('click', () => {
-        sidebar.classList.remove('active');
-      });
-    }
-  }
-
   bindCloseCompareModal() {
     const closeBtn = this.container.querySelector('#zd-close-compare-modal');
     const modal = this.container.querySelector('#zd-compare-modal');
@@ -433,80 +429,79 @@ class Dashboard {
         modal.style.display = 'none';
       });
     }
-    // Close modal if clicked outside
-    if (modal) {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          modal.style.display = 'none';
-        }
-      });
-    }
   }
 
   bindDraggableSidebar() {
     const sidebar = this.container.querySelector('#zd-comparison-sidebar');
     const header = this.container.querySelector('.zd-sidebar-header');
-
     if (!sidebar || !header) return;
 
     let isDragging = false;
-    let currentX;
-    let currentY;
-    let initialX;
-    let initialY;
     let xOffset = 0;
     let yOffset = 0;
+    let initialX;
+    let initialY;
+
+    // Reset translation to 0,0 on initial load to allow for correct drag calculation
+    sidebar.style.transform = `translate3d(0px, 0px, 0)`;
 
     header.addEventListener('mousedown', dragStart);
     document.addEventListener('mousemove', drag);
     document.addEventListener('mouseup', dragEnd);
+    header.addEventListener('touchstart', dragStart);
+    document.addEventListener('touchmove', drag);
+    document.addEventListener('touchend', dragEnd);
 
     function dragStart(e) {
-      // Check if the click originated from the header or its children (like the title text)
-      if (header.contains(e.target)) {
-        initialX = e.clientX - xOffset;
-        initialY = e.clientY - yOffset;
+        if (e.target.closest('.zd-close-sidebar')) return; // Ignore clicks on close button
+        e.preventDefault();
 
-        isDragging = true; // Start dragging if the click is anywhere within the header
-      }
+        const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+
+        const style = window.getComputedStyle(sidebar);
+        const matrix = new DOMMatrix(style.transform);
+
+        initialX = clientX - matrix.m41;
+        initialY = clientY - matrix.m42;
+        xOffset = matrix.m41;
+        yOffset = matrix.m42;
+
+        isDragging = true;
+        header.style.cursor = 'grabbing';
     }
 
     function drag(e) {
-      if (isDragging) {
+        if (!isDragging) return;
         e.preventDefault();
-        currentX = e.clientX - initialX;
-        currentY = e.clientY - initialY;
 
-        xOffset = currentX;
-        yOffset = currentY;
+        const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+
+        let currentX = clientX - initialX;
+        let currentY = clientY - initialY;
+        
+        // Clamping logic to keep it visible
+        const maxX = window.innerWidth - sidebar.offsetWidth;
+        const maxY = window.innerHeight - sidebar.offsetHeight;
+        
+        currentX = Math.min(Math.max(currentX, -sidebar.offsetLeft), maxX - sidebar.offsetLeft);
+        currentY = Math.min(Math.max(currentY, -sidebar.offsetTop), maxY - sidebar.offsetTop);
 
         setTranslate(currentX, currentY, sidebar);
-      }
     }
 
-    function dragEnd(e) {
-      initialX = currentX;
-      initialY = currentY;
-      isDragging = false;
+    function dragEnd() {
+        isDragging = false;
+        header.style.cursor = 'move';
     }
 
     function setTranslate(xPos, yPos, el) {
-      el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        xOffset = xPos;
+        yOffset = yPos;
     }
-  }
-
-  bindTimeframeButtons() {
-    const buttons = this.container.querySelectorAll('.zd-tf-btn');
-    buttons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        buttons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.timeframeModule.applyFilter(btn.dataset.range);
-        // Clear analysis when timeframe changes
-        this.clearAnalysisArea();
-      });
-    });
-  }
+}
 
   bindSearchInput() {
     const input = this.container.querySelector('#zd-search-input');
@@ -581,37 +576,32 @@ class Dashboard {
       if (loading) loading.style.display = 'flex';
       if (chartTitle) chartTitle.textContent = 'Loading...';
       
-      const data = await this.dataFetcher.fetchIndicatorData(slug);
-      const indicator = data.indicator;
-      const series = data.series;
+      const data = await this.dataFetcher.tryLoadIndicator(slug); // Use DataFetcher method
       
-      const formattedData = series.map(point => ({
-        x: new Date(point[0]),
-        y: parseFloat(point[1])
-      }));
-
       this.chartDataStore.primary = {
-        full: formattedData,
-        current: [...formattedData],
-        title: indicator.name,
-        slug: indicator.slug, // Added slug
-        lastUpdate: formattedData[formattedData.length - 1].x
+        full: data.series,
+        current: [...data.series],
+        title: data.indicator.name,
+        slug: data.indicator.slug,
+        lastUpdate: data.lastUpdate
       };
 
       // Clear all comparisons when switching primary
       this.chartDataStore.comparisons = [];
-      // Assuming comparison items are handled by the ComparisonModule
       this.comparisonModule.clearComparisons();
-      this.clearAnalysisArea(); // Clear analysis when primary indicator changes
+      this.clearAnalysisArea();
 
       // Apply current timeframe
       const activeBtn = this.container.querySelector('.zd-tf-btn.active');
       if (activeBtn) {
         this.timeframeModule.applyFilter(activeBtn.dataset.range);
+      } else {
+          // If no active button, apply filter with default config range (e.g., 5Y)
+          this.timeframeModule.applyFilter(this.config.defaultTimeRange || '5Y');
       }
 
       this.chartRenderer.createOrUpdateChart();
-      this.enableLLMButtons(true); // Enable LLM buttons after successful load
+      this.enableLLMButtons(true);
       if (loading) loading.style.display = 'none';
       return true;
     } catch (e) {
@@ -625,7 +615,7 @@ class Dashboard {
     const ok = await this.tryLoadIndicator(slug);
     if (ok) return;
 
-    // Fallback: try other available indicators from config
+    // Fallback logic kept for robustness
     const candidates = [];
     const list = Array.isArray(window.zcDmtConfig?.indicators) ? window.zcDmtConfig.indicators : [];
     list.forEach(i => {
@@ -653,8 +643,9 @@ class Dashboard {
   clearAnalysisArea() {
     const container = this.container.querySelector('#zd-analysis-container');
     if (container) {
-      container.innerHTML = '';
       container.style.display = 'none';
+      const content = container.querySelector('#zd-analysis-content');
+      if (content) content.innerHTML = '';
     }
   }
 
@@ -666,7 +657,7 @@ class Dashboard {
     if (chartTitle) chartTitle.textContent = 'No Indicator Selected';
     if (lastUpdate) lastUpdate.textContent = 'Use the search button above to find indicators';
     if (loading) loading.style.display = 'none';
-    this.enableLLMButtons(false); // Disable LLM buttons when no data
+    this.enableLLMButtons(false);
   }
 
   onComparisonDataUpdated() {
@@ -676,17 +667,24 @@ class Dashboard {
     // Clear the existing comparisons store
     this.chartDataStore.comparisons = [];
 
-    // Populate chartDataStore.comparisons array with data from the module
+    // Map the visible items back to the chart data store, retaining full/current structure
     visibleComparisonItems.forEach(item => {
-      if (item.series && item.series.length > 0) { // Check if data exists
-        this.chartDataStore.comparisons.push({
-          full: item.series,
-          current: [...item.series], // Initially, current is the same as full
-          title: item.title,
-          slug: item.slug,
-          visible: item.visible // Use the item's visibility status
-        });
-      }
+        // Find the matching data series to ensure 'full' data is correctly set
+        const matchingData = item.series; 
+
+        if (matchingData && matchingData.length > 0) {
+            // Apply current timeframe filter to the full data of the new comparison item
+            const currentRange = this.container.querySelector('.zd-tf-btn.active')?.dataset.range || this.config.defaultTimeRange || '5Y';
+            const filteredData = this.timeframeModule.applyFilter(currentRange, matchingData);
+            
+            this.chartDataStore.comparisons.push({
+                full: matchingData,
+                current: filteredData, 
+                title: item.title,
+                slug: item.slug,
+                visible: item.visible
+            });
+        }
     });
 
     // Re-render the chart to reflect the changes
