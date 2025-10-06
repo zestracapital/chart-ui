@@ -127,9 +127,6 @@ class ChartRenderer {
     
     const datasets = [];
     
-    // Primary Tension Fix: Enforce 0.3 tension for line charts, 0 for bar charts
-    const primaryTension = chartTypeConfig.type === 'line' ? 0.3 : 0;
-
     // 1. Primary Dataset
     datasets.push({
       label: primary.title,
@@ -138,18 +135,16 @@ class ChartRenderer {
       backgroundColor: this.dashboard.currentChartType === 'bar' ? currentTheme.barBg : `${this.getDatasetColor(0, currentTheme)}15`,
       borderWidth: 3,
       type: chartTypeConfig.type,
-      tension: primaryTension, 
+      tension: chartTypeConfig.tension, 
       fill: chartTypeConfig.fill,
       pointRadius: chartTypeConfig.pointRadius,
       pointHoverRadius: chartTypeConfig.pointHoverRadius,
       yAxisID: 'y', 
     });
 
-    // 2. Comparison Datasets (Tension and Color Fix)
+    // 2. Comparison Datasets (Fix: Use chartTypeConfig for all lines)
     comparisons.forEach((comp, index) => {
-      // Comparison lines should always be type 'line' with tension 0.3
-      const secondaryChartTypeConfig = this.dashboard.chartTypesModule.getChartConfig('line');
-      
+      // Use the same chart type configuration as the primary chart
       const color = this.getDatasetColor(index + 1, currentTheme); // Start at index 1 (line2)
       
       datasets.push({
@@ -158,12 +153,12 @@ class ChartRenderer {
         borderColor: color,
         backgroundColor: `${color}15`,
         borderWidth: 3,
-        fill: secondaryChartTypeConfig.fill,
-        type: 'line', // Forced to line for comparison
-        tension: 0.3, // Fixed tension for smooth curves on comparison lines
+        fill: chartTypeConfig.fill,
+        type: chartTypeConfig.type, // Use the chart type from the config
+        tension: chartTypeConfig.tension, // Use the tension from the config
         yAxisID: 'y', 
-        pointRadius: secondaryChartTypeConfig.pointRadius,
-        pointHoverRadius: secondaryChartTypeConfig.pointHoverRadius,
+        pointRadius: chartTypeConfig.pointRadius,
+        pointHoverRadius: chartTypeConfig.pointHoverRadius,
       });
     });
 
